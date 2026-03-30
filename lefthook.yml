@@ -1,0 +1,26 @@
+pre-commit:
+  parallel: false
+  commands:
+    no-todo:
+      glob: "*.rs"
+      run: "! grep -rn 'TODO\\|FIXME\\|HACK\\|XXX\\|todo!' {staged_files} || (echo 'ERROR: Found TODO/FIXME comments. Resolve them before committing.' && exit 1)"
+    fmt:
+      run: command -v cargo >/dev/null && cargo fmt --all || true
+      stage_fixed: true
+    check:
+      run: command -v cargo >/dev/null && cargo check --workspace || true
+
+pre-push:
+  parallel: false
+  commands:
+    no-todo:
+      glob: "*.rs"
+      run: "! grep -rn 'TODO\\|FIXME\\|HACK\\|XXX\\|todo!' {staged_files} || (echo 'ERROR: Found TODO/FIXME comments. Resolve them before pushing.' && exit 1)"
+    check:
+      run: command -v cargo >/dev/null && cargo check --workspace || true
+    clippy:
+      run: command -v cargo >/dev/null && cargo clippy --workspace -- -D warnings || true
+    fmt-check:
+      run: command -v cargo >/dev/null && cargo fmt --all -- --check || true
+    test:
+      run: command -v cargo >/dev/null && cargo test --workspace --tests || true

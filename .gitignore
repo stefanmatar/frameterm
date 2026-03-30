@@ -1,0 +1,3 @@
+/target
+*.mp4
+!.github/assets/demo.mp4

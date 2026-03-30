@@ -1,0 +1,17 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/main/.schema/devbox.schema.json",
+  "packages": [
+    "rustup@latest",
+    "ffmpeg@latest",
+    "pkg-config@latest",
+    "openssl@latest",
+    "lefthook@latest"
+  ],
+  "shell": {
+    "init_hook": [
+      "rustup default stable",
+      "lefthook install",
+      "echo 'frameterm dev environment ready'"
+    ]
+  }
+}
