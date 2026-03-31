@@ -283,15 +283,26 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
             session,
             pattern,
             regex,
+            not,
             timeout,
         } => {
             let mgr = manager.lock().unwrap();
-            match mgr.wait_for(&session, &pattern, regex, timeout) {
-                Ok(()) => Response::success(serde_json::json!({
-                    "session": session,
-                    "status": "found",
-                })),
-                Err(e) => session_error_response(&e),
+            if not {
+                match mgr.wait_for_not(&session, &pattern, regex, timeout) {
+                    Ok(()) => Response::success(serde_json::json!({
+                        "session": session,
+                        "status": "cleared",
+                    })),
+                    Err(e) => session_error_response(&e),
+                }
+            } else {
+                match mgr.wait_for(&session, &pattern, regex, timeout) {
+                    Ok(()) => Response::success(serde_json::json!({
+                        "session": session,
+                        "status": "found",
+                    })),
+                    Err(e) => session_error_response(&e),
+                }
             }
         }
 

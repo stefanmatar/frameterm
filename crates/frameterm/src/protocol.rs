@@ -48,6 +48,7 @@ pub enum Request {
         session: String,
         pattern: String,
         regex: bool,
+        not: bool,
         timeout: Option<u64>,
     },
     RecordExport {

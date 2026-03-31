@@ -12,6 +12,8 @@ use crate::input::{InputEvent, InputEventKind, ScrollDirection};
 pub enum WaitStatus {
     Waiting { text: String, started_ms: u64 },
     Found { text: String, found_ms: u64 },
+    WaitingNot { text: String, started_ms: u64 },
+    Cleared { text: String, found_ms: u64 },
 }
 
 /// Default recording FPS.
@@ -768,17 +770,31 @@ fn render_wait_badge(
     row_height: i32,
     om: &OverlayMetrics,
 ) {
-    let (wait_text, found_ms) = match status {
-        WaitStatus::Waiting { text, .. } => (text.as_str(), None),
+    let (wait_text, found_ms, is_not) = match status {
+        WaitStatus::Waiting { text, .. } => (text.as_str(), None, false),
         WaitStatus::Found { text, found_ms } => {
             if frame_time > found_ms + WAIT_FOUND_DISPLAY_MS {
                 return;
             }
-            (text.as_str(), Some(*found_ms))
+            (text.as_str(), Some(*found_ms), false)
+        }
+        WaitStatus::WaitingNot { text, .. } => (text.as_str(), None, true),
+        WaitStatus::Cleared { text, found_ms } => {
+            if frame_time > found_ms + WAIT_FOUND_DISPLAY_MS {
+                return;
+            }
+            (text.as_str(), Some(*found_ms), true)
         }
     };
 
-    let canonical_text = format!("{} waiting for \"{wait_text}\"", SPINNER_FRAMES[0]);
+    let canonical_text = if is_not {
+        format!(
+            "{} wait for \"{}\" to be gone",
+            SPINNER_FRAMES[0], wait_text
+        )
+    } else {
+        format!("{} waiting for \"{}\"", SPINNER_FRAMES[0], wait_text)
+    };
     let fpx = om.overlay_font_px;
 
     let font = &*FONT;
@@ -817,7 +833,11 @@ fn render_wait_badge(
 
     draw_text(pb, prefix_char, text_x, baseline_y, fpx, prefix_color);
 
-    let suffix = format!(" waiting for \"{wait_text}\"");
+    let suffix = if is_not {
+        format!(" wait for \"{wait_text}\" to be gone")
+    } else {
+        format!(" waiting for \"{wait_text}\"")
+    };
     draw_text(pb, &suffix, text_x + prefix_w, baseline_y, fpx, TOKEN_TEXT);
 }
 

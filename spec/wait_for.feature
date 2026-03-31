@@ -37,6 +37,20 @@ Feature: Wait For Text
     When I run "frameterm wait-for -s app Welcome"
     Then the command should return immediately
 
+  Scenario: Wait for text to disappear
+    Given the screen already contains "Loading"
+    When I run "frameterm wait-for -s app Loading --not"
+    And the application removes "Loading" from the screen
+    Then the command should return once "Loading" is no longer on screen
+
+  Scenario: Wait for text to disappear with timeout
+    Given the screen already contains "Processing"
+    When I run "frameterm wait-for -s app Processing --not --timeout 2000"
+    And the text remains on screen
+    Then the command should fail with a JSON error after 2000ms
+    And the error code should be "WAIT_TIMEOUT"
+    And the process exit code should be non-zero
+
   Scenario: Wait for text on nonexistent session
     When I run "frameterm wait-for -s nonexistent Ready"
     Then the command should fail with a JSON error

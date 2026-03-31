@@ -631,6 +631,69 @@ impl SessionManager {
         }
     }
 
+    /// Wait until text is NOT visible on screen.
+    pub fn wait_for_not(
+        &self,
+        name: &str,
+        pattern: &str,
+        regex: bool,
+        timeout_ms: Option<u64>,
+    ) -> Result<(), SessionError> {
+        {
+            let mut inner = self.inner.lock().unwrap();
+            let state = inner.sessions.get_mut(name).ok_or_else(|| SessionError {
+                code: SessionErrorCode::SessionNotFound,
+                message: format!("Session '{name}' not found"),
+                suggestion: Some("Run frameterm list-sessions to see active sessions".to_string()),
+            })?;
+            let started_ms = state.recording.current_timestamp_ms();
+            state.recording.wait_status = Some(WaitStatus::WaitingNot {
+                text: pattern.to_string(),
+                started_ms,
+            });
+        }
+
+        let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(30_000));
+        let start = std::time::Instant::now();
+        let poll_interval = std::time::Duration::from_millis(50);
+
+        loop {
+            let found = {
+                let inner = self.inner.lock().unwrap();
+                let state = inner.sessions.get(name).unwrap();
+                if regex {
+                    state.terminal.matches_regex(pattern)
+                } else {
+                    state.terminal.contains(pattern)
+                }
+            };
+
+            if !found {
+                let mut inner = self.inner.lock().unwrap();
+                if let Some(state) = inner.sessions.get_mut(name) {
+                    let found_ms = state.recording.current_timestamp_ms();
+                    state.recording.wait_status = Some(WaitStatus::Cleared {
+                        text: pattern.to_string(),
+                        found_ms,
+                    });
+                }
+                return Ok(());
+            }
+
+            if start.elapsed() >= timeout {
+                return Err(SessionError {
+                    code: SessionErrorCode::WaitTimeout,
+                    message: format!("Timed out waiting for '{pattern}' to disappear"),
+                    suggestion: Some(
+                        "Increase --timeout or check the application state".to_string(),
+                    ),
+                });
+            }
+
+            std::thread::sleep(poll_interval);
+        }
+    }
+
     pub fn write_to_screen(&mut self, name: &str, text: &str) -> Result<(), SessionError> {
         let mut inner = self.inner.lock().unwrap();
         let state = inner.sessions.get_mut(name).ok_or_else(|| SessionError {

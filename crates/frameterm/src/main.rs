@@ -148,6 +148,10 @@ enum Commands {
         #[arg(long)]
         regex: bool,
 
+        /// Wait for text to NOT be visible
+        #[arg(long)]
+        not: bool,
+
         /// Timeout in ms (default: 30000)
         #[arg(long)]
         timeout: Option<u64>,
@@ -318,11 +322,13 @@ fn main() {
             s,
             pattern,
             regex,
+            not,
             timeout,
         } => Request::WaitFor {
             session: resolve_session(s),
             pattern,
             regex,
+            not,
             timeout,
         },
 

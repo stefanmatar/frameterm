@@ -114,6 +114,7 @@ frameterm scroll down 5                # Scroll down 5 lines
 ```bash
 frameterm resize 120 40                # Resize terminal
 frameterm wait-for "Ready"             # Wait for text to appear (30s default)
+frameterm wait-for "Loading" --not     # Wait for text to disappear
 frameterm wait-for "Error" --regex     # Wait for regex pattern
 frameterm wait-for "Done" --timeout 5000  # Wait with 5s timeout
 ```

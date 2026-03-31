@@ -2,11 +2,14 @@
 
 Get video proof of what your agents did in TUIs.
 
+Here's [opencode](https://github.com/sst/opencode) driven by frameterm — spawned, waited on, typed into, and recorded as video:
+
 ![demo](https://github.com/stefanmatar/frameterm/raw/main/.github/assets/demo.gif)
 
-- Keystroke overlay in the video footer, like [KeyCastr](https://github.com/keycastr/keycastr)
-- Live CPU and memory sparklines while the TUI is running
-- Wait-for badge that shows when frameterm is blocking on a screen state
+The footer is burned into the exported MP4 automatically:
+- Keystroke overlay showing what was typed, like [KeyCastr](https://github.com/keycastr/keycastr)
+- Live CPU and memory sparklines for the running process
+- Wait-for badge visible while frameterm blocks on a screen state
 
 ## Use cases
 
@@ -99,6 +102,7 @@ frameterm scroll down 5                  # Scroll
 
 ```bash
 frameterm wait-for "Ready"               # Block until text appears
+frameterm wait-for "Loading" --not       # Block until text disappears
 frameterm wait-for "Error" --regex       # Regex pattern
 frameterm wait-for "Done" --timeout 5000 # Custom timeout
 
