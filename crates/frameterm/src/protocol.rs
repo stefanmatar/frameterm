@@ -55,6 +55,7 @@ pub enum Request {
         session: Option<String>,
         all: bool,
         no_overlay: bool,
+        no_footer: bool,
         output: Option<String>,
         width: Option<u32>,
     },

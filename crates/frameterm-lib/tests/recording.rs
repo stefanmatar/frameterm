@@ -161,7 +161,10 @@ fn rec_session_no_activity(mut ctx: Ctx, name: String) -> Ctx {
 fn rec_session_ends(mut ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let dir = ctx.temp_dir.to_string_lossy().to_string();
-    match ctx.manager.export_recording(&name, Some(&dir), false, None) {
+    match ctx
+        .manager
+        .export_recording(&name, Some(&dir), false, false, None)
+    {
         Ok(export) => {
             ctx.last_export = Some(export.clone());
             ctx.exports.push(export);
@@ -225,7 +228,7 @@ fn rec_run_command(mut ctx: Ctx, command: String) -> Ctx {
                     for s in &sessions {
                         match ctx
                             .manager
-                            .export_recording(s, Some(&dir), no_overlay, None)
+                            .export_recording(s, Some(&dir), no_overlay, false, None)
                         {
                             Ok(export) => {
                                 ctx.exports.push(export);
@@ -237,10 +240,13 @@ fn rec_run_command(mut ctx: Ctx, command: String) -> Ctx {
                     }
                     ctx.last_export = ctx.exports.last().cloned();
                 } else {
-                    match ctx
-                        .manager
-                        .export_recording(&session, Some(&dir), no_overlay, None)
-                    {
+                    match ctx.manager.export_recording(
+                        &session,
+                        Some(&dir),
+                        no_overlay,
+                        false,
+                        None,
+                    ) {
                         Ok(export) => {
                             ctx.last_export = Some(export.clone());
                             ctx.exports.push(export);
@@ -335,7 +341,7 @@ fn rec_run_command_again(mut ctx: Ctx, command: String) -> Ctx {
         let dir = ctx.temp_dir.to_string_lossy().to_string();
         match ctx
             .manager
-            .export_recording(&session, Some(&dir), false, None)
+            .export_recording(&session, Some(&dir), false, false, None)
         {
             Ok(export) => {
                 ctx.last_export = Some(export.clone());
@@ -353,7 +359,7 @@ fn rec_export(mut ctx: Ctx) -> Ctx {
     let dir = ctx.temp_dir.to_string_lossy().to_string();
     match ctx
         .manager
-        .export_recording("demo", Some(&dir), false, None)
+        .export_recording("demo", Some(&dir), false, false, None)
     {
         Ok(export) => {
             ctx.last_export = Some(export.clone());

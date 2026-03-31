@@ -717,6 +717,7 @@ impl SessionManager {
         name: &str,
         output_dir: Option<&str>,
         no_overlay: bool,
+        no_footer: bool,
         width: Option<u32>,
     ) -> Result<RecordingExport, SessionError> {
         let inner = self.inner.lock().unwrap();
@@ -756,7 +757,7 @@ impl SessionManager {
             let _ = std::fs::create_dir_all(parent);
         }
 
-        let has_overlay = !no_overlay && state.recording.overlay_enabled;
+        let has_overlay = !no_overlay && !no_footer && state.recording.overlay_enabled;
 
         let overlay_events = if has_overlay {
             state.recording.input_events.clone()
@@ -769,6 +770,7 @@ impl SessionManager {
             state.recording.fps,
             &path,
             has_overlay,
+            no_footer,
             &overlay_events,
             width,
         )

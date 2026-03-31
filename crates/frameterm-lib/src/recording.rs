@@ -396,6 +396,7 @@ pub fn export_mp4(
     fps: u32,
     output_path: &std::path::Path,
     overlay: bool,
+    no_footer: bool,
     input_events: &[InputEvent],
     target_width: Option<u32>,
 ) -> std::io::Result<()> {
@@ -410,8 +411,9 @@ pub fn export_mp4(
     let cols = last_frame.cols.max(1) as u32;
     let rows = last_frame.rows.max(1) as u32;
 
+    let show_footer = overlay && !no_footer;
     let (font_px, cw, ch, pixel_width, pixel_height, pad_left, terminal_height) =
-        compute_layout(cols, rows, overlay, target_width);
+        compute_layout(cols, rows, show_footer, target_width);
 
     let om = OverlayMetrics::for_height(terminal_height);
 
@@ -472,7 +474,7 @@ pub fn export_mp4(
             pad_left,
             &om,
         );
-        if overlay {
+        if show_footer {
             let mut pb = PixelBufMut::wrap(&mut rgb, pixel_width, pixel_height);
             render_overlay(
                 &mut pb,

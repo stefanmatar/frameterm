@@ -310,6 +310,7 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
             session,
             all,
             no_overlay,
+            no_footer,
             output,
             width,
         } => {
@@ -318,7 +319,7 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
                 let sessions: Vec<String> = mgr.list().iter().map(|s| s.name.clone()).collect();
                 let mut exports = Vec::new();
                 for s in &sessions {
-                    match mgr.export_recording(s, output.as_deref(), no_overlay, width) {
+                    match mgr.export_recording(s, output.as_deref(), no_overlay, no_footer, width) {
                         Ok(export) => exports.push(serde_json::to_value(&export).unwrap()),
                         Err(e) => return session_error_response(&e),
                     }
@@ -326,7 +327,7 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
                 Response::success(serde_json::json!({ "exports": exports }))
             } else {
                 let name = session.unwrap_or_else(|| "default".to_string());
-                match mgr.export_recording(&name, output.as_deref(), no_overlay, width) {
+                match mgr.export_recording(&name, output.as_deref(), no_overlay, no_footer, width) {
                     Ok(export) => Response::success(serde_json::to_value(&export).unwrap()),
                     Err(e) => session_error_response(&e),
                 }

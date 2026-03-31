@@ -126,6 +126,7 @@ frameterm record export                # Export default session as MP4
 frameterm record export -s myapp       # Export specific session
 frameterm record export --all          # Export all sessions
 frameterm record export --no-overlay   # Without keystroke overlay
+frameterm record export --no-footer    # Terminal only, no footer at all
 frameterm record export --output /tmp  # To specific directory
 frameterm record export --width 1920   # Scale to specific width
 ```

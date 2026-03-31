@@ -2,6 +2,10 @@
 
 Get video proof of what your agents did in TUIs.
 
+```bash
+brew install stefanmatar/tap/frameterm
+```
+
 Here's [opencode](https://github.com/sst/opencode) driven by frameterm — spawned, waited on, typed into, and recorded as video:
 
 ![demo](https://github.com/stefanmatar/frameterm/raw/main/.github/assets/demo.gif)
@@ -119,6 +123,7 @@ frameterm record export                  # Export as MP4
 frameterm record export -s myapp         # Specific session
 frameterm record export --all            # All sessions
 frameterm record export --no-overlay     # Without input overlay
+frameterm record export --no-footer      # Terminal only, no footer
 frameterm record export --output /tmp    # To directory
 frameterm record export --width 1920     # Scale to width
 ```

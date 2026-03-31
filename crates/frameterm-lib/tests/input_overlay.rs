@@ -202,7 +202,7 @@ fn ov_run_command(mut ctx: Ctx, command: String) -> Ctx {
                 let dir = ctx.temp_dir.to_string_lossy().to_string();
                 let export = ctx
                     .manager
-                    .export_recording(&session, Some(&dir), no_overlay, None)
+                    .export_recording(&session, Some(&dir), no_overlay, false, None)
                     .expect("Recording export must succeed");
                 assert!(
                     export.path.exists(),
@@ -224,7 +224,7 @@ fn ov_export(mut ctx: Ctx) -> Ctx {
     let dir = ctx.temp_dir.to_string_lossy().to_string();
     let export = ctx
         .manager
-        .export_recording("demo", Some(&dir), false, None)
+        .export_recording("demo", Some(&dir), false, false, None)
         .expect("Recording export must succeed");
     assert!(export.path.exists(), "Exported MP4 must exist on disk");
     ctx.last_export = Some(export);

@@ -203,6 +203,10 @@ enum RecordAction {
         #[arg(long)]
         no_overlay: bool,
 
+        /// Remove footer entirely — terminal only
+        #[arg(long)]
+        no_footer: bool,
+
         /// Output directory
         #[arg(long)]
         output: Option<String>,
@@ -338,6 +342,7 @@ fn main() {
                     s,
                     all,
                     no_overlay,
+                    no_footer,
                     output,
                     width,
                 },
@@ -346,7 +351,8 @@ fn main() {
                 Request::RecordExport {
                     session: None,
                     all: true,
-                    no_overlay,
+                    no_overlay: no_overlay || no_footer,
+                    no_footer,
                     output,
                     width,
                 }
@@ -354,7 +360,8 @@ fn main() {
                 Request::RecordExport {
                     session: Some(resolve_session(s)),
                     all: false,
-                    no_overlay,
+                    no_overlay: no_overlay || no_footer,
+                    no_footer,
                     output,
                     width,
                 }
