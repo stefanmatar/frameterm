@@ -45,14 +45,18 @@ jobs:
             README.md
 
   homebrew:
-    name: Update Homebrew Tap
+    name: Update Homebrew Formula
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
       - name: Wait for release assets
         run: sleep 10
 
-      - name: Download checksums from release
+      - name: Download checksums
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -60,19 +64,17 @@ jobs:
             --repo stefanmatar/frameterm \
             --pattern '*.sha256'
 
-      - name: Push formula
-        env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: Update formula
         run: |
           V="${GITHUB_REF_NAME#v}"
           DL="https://github.com/stefanmatar/frameterm/releases/download/${GITHUB_REF_NAME}"
 
-          SHA_DAR_ARM=$(awk '{print $1}' frameterm-aarch64-apple-darwin.sha256)
-          SHA_DAR_X86=$(awk '{print $1}' frameterm-x86_64-apple-darwin.sha256)
-          SHA_LIN_X86=$(awk '{print $1}' frameterm-x86_64-unknown-linux-gnu.sha256)
-          SHA_LIN_ARM=$(awk '{print $1}' frameterm-aarch64-unknown-linux-gnu.sha256)
+          SHA_MAC_ARM=$(awk '{print $1}' frameterm-macOS-arm64.tar.gz.sha256)
+          SHA_MAC_X86=$(awk '{print $1}' frameterm-macOS-x86_64.tar.gz.sha256)
+          SHA_LIN_X86=$(awk '{print $1}' frameterm-Linux-gnu-x86_64.tar.gz.sha256)
+          SHA_LIN_ARM=$(awk '{print $1}' frameterm-Linux-gnu-arm64.tar.gz.sha256)
 
-          FORMULA=$(cat <<RUBY
+          cat > Formula/frameterm.rb <<RUBY
           class Frameterm < Formula
             desc "TUI automation for AI agents with video recording"
             homepage "https://github.com/stefanmatar/frameterm"
@@ -83,22 +85,22 @@ jobs:
 
             on_macos do
               on_arm do
-                url "${DL}/frameterm-aarch64-apple-darwin.tar.gz"
-                sha256 "${SHA_DAR_ARM}"
+                url "${DL}/frameterm-macOS-arm64.tar.gz"
+                sha256 "${SHA_MAC_ARM}"
               end
               on_intel do
-                url "${DL}/frameterm-x86_64-apple-darwin.tar.gz"
-                sha256 "${SHA_DAR_X86}"
+                url "${DL}/frameterm-macOS-x86_64.tar.gz"
+                sha256 "${SHA_MAC_X86}"
               end
             end
 
             on_linux do
               on_arm do
-                url "${DL}/frameterm-aarch64-unknown-linux-gnu.tar.gz"
+                url "${DL}/frameterm-Linux-gnu-arm64.tar.gz"
                 sha256 "${SHA_LIN_ARM}"
               end
               on_intel do
-                url "${DL}/frameterm-x86_64-unknown-linux-gnu.tar.gz"
+                url "${DL}/frameterm-Linux-gnu-x86_64.tar.gz"
                 sha256 "${SHA_LIN_X86}"
               end
             end
@@ -112,41 +114,12 @@ jobs:
             end
           end
           RUBY
-          )
 
-          # Get existing file SHA if it exists
-          EXISTING_SHA=$(gh api repos/stefanmatar/homebrew-tap/contents/Formula/frameterm.rb \
-            --jq '.sha' 2>/dev/null || echo "")
-
-          SHA_PARAM=""
-          if [ -n "$EXISTING_SHA" ]; then
-            SHA_PARAM=",\"sha\":\"${EXISTING_SHA}\""
-          fi
-
-          # Update formula via GitHub Contents API
-          echo "${FORMULA}" | python3 -c "
-          import sys, base64, json
-          content = sys.stdin.read()
-          print(json.dumps({
-            'message': 'frameterm ${{ github.ref_name }}',
-            'content': base64.b64encode(content.encode()).decode(),
-            'committer': {
-              'name': 'github-actions[bot]',
-              'email': 'github-actions[bot]@users.noreply.github.com'
-            }
-          }))" > /tmp/body.json
-
-          if [ -n "$EXISTING_SHA" ]; then
-            python3 -c "
-          import json
-          d = json.load(open('/tmp/body.json'))
-          d['sha'] = '${EXISTING_SHA}'
-          json.dump(d, open('/tmp/body.json','w'))
-          "
-          fi
-
-          gh api repos/stefanmatar/homebrew-tap/contents/Formula/frameterm.rb \
-            -X PUT \
-            --input /tmp/body.json
-
-          echo "Updated homebrew formula to ${V}"
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/frameterm.rb
+          git diff --cached --quiet && exit 0
+          git commit -m "homebrew: update formula to ${{ github.ref_name }}"
+          git push origin main

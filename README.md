@@ -3,7 +3,7 @@
 Get video proof of what your agents did in TUIs.
 
 ```bash
-brew install stefanmatar/tap/frameterm
+brew install stefanmatar/frameterm/frameterm
 ```
 
 Here's [opencode](https://github.com/sst/opencode) driven by frameterm — spawned, waited on, typed into, and recorded as video:
@@ -54,7 +54,7 @@ The exported MP4 has anti-aliased text (JetBrains Mono + Noto Emoji), full ANSI 
 ## Install
 
 ```bash
-brew install stefanmatar/tap/frameterm
+brew install stefanmatar/frameterm/frameterm
 ```
 
 Or build from source:
