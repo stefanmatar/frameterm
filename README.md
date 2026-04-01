@@ -57,7 +57,21 @@ The exported MP4 has anti-aliased text (JetBrains Mono + Noto Emoji), full ANSI 
 brew install stefanmatar/frameterm/frameterm
 ```
 
-Or build from source:
+### GitHub Actions
+
+```yaml
+- uses: stefanmatar/frameterm@v1
+```
+
+Pin a specific version:
+
+```yaml
+- uses: stefanmatar/frameterm@v1
+  with:
+    version: "1.2.2"
+```
+
+### Build from source
 
 ```bash
 cargo install --path crates/frameterm

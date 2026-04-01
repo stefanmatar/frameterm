@@ -1,0 +1,71 @@
+name: "Setup frameterm"
+description: "Install frameterm — TUI automation for AI agents with video recording"
+branding:
+  icon: "terminal"
+  color: "gray-dark"
+
+inputs:
+  version:
+    description: "frameterm version to install (e.g. '1.2.2'). Defaults to latest."
+    required: false
+    default: "latest"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install frameterm
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+
+        # Resolve version
+        if [ "$INPUT_VERSION" = "latest" ]; then
+          VERSION=$(gh release view --repo stefanmatar/frameterm --json tagName -q '.tagName' 2>/dev/null \
+            || curl -sI "https://github.com/stefanmatar/frameterm/releases/latest" | grep -i ^location | sed 's|.*/v||;s/\r//')
+          VERSION="${VERSION#v}"
+        else
+          VERSION="${INPUT_VERSION#v}"
+        fi
+
+        if [ -z "$VERSION" ]; then
+          echo "::error::Could not resolve frameterm version"
+          exit 1
+        fi
+
+        # Detect OS
+        case "$(uname -s)" in
+          Linux*)  OS="Linux-gnu" ;;
+          Darwin*) OS="macOS" ;;
+          *)
+            echo "::error::Unsupported OS: $(uname -s)"
+            exit 1
+            ;;
+        esac
+
+        # Detect architecture
+        case "$(uname -m)" in
+          x86_64|amd64)  ARCH="x86_64" ;;
+          aarch64|arm64) ARCH="arm64" ;;
+          *)
+            echo "::error::Unsupported architecture: $(uname -m)"
+            exit 1
+            ;;
+        esac
+
+        ASSET="frameterm-${OS}-${ARCH}.tar.gz"
+        URL="https://github.com/stefanmatar/frameterm/releases/download/v${VERSION}/${ASSET}"
+
+        echo "Installing frameterm v${VERSION} (${OS}/${ARCH})"
+
+        INSTALL_DIR="${RUNNER_TEMP:-/tmp}/frameterm"
+        mkdir -p "$INSTALL_DIR"
+
+        curl -sL "$URL" -o "${INSTALL_DIR}/frameterm.tar.gz"
+        tar -xzf "${INSTALL_DIR}/frameterm.tar.gz" -C "$INSTALL_DIR"
+        chmod +x "${INSTALL_DIR}/frameterm"
+        rm "${INSTALL_DIR}/frameterm.tar.gz"
+
+        echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
+        echo "frameterm v${VERSION} installed to ${INSTALL_DIR}"

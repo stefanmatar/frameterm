@@ -147,3 +147,18 @@ jobs:
             -f committer[email]="github-actions[bot]@users.noreply.github.com"
 
           echo "Synced formula to homebrew-frameterm tap"
+
+  update-action-tag:
+    name: Update Action Tag
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update floating major version tag
+        run: |
+          MAJOR=$(echo "${{ github.ref_name }}" | sed 's/^v//' | cut -d. -f1)
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa "v${MAJOR}" -m "Update v${MAJOR} tag to ${{ github.ref_name }}"
+          git push origin "v${MAJOR}" --force
