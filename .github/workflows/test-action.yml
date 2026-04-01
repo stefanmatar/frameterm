@@ -14,10 +14,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install frameterm (latest)
-        uses: ./
+      - uses: stefanmatar/frameterm@v1
 
       - name: Verify binary
         run: |
@@ -31,10 +28,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Install frameterm (pinned v1.2.2)
-        uses: ./
+      - uses: stefanmatar/frameterm@v1
         with:
           version: "1.2.2"
 
