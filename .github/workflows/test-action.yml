@@ -1,0 +1,44 @@
+name: Test Action
+
+on:
+  pull_request:
+    paths:
+      - "action.yml"
+      - ".github/workflows/test-action.yml"
+
+jobs:
+  test-latest:
+    name: "Test @v1 (latest) on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install frameterm (latest)
+        uses: ./
+
+      - name: Verify binary
+        run: |
+          which frameterm
+          frameterm --help
+
+  test-pinned:
+    name: "Test pinned version on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install frameterm (pinned v1.2.2)
+        uses: ./
+        with:
+          version: "1.2.2"
+
+      - name: Verify binary
+        run: |
+          which frameterm
+          frameterm --help
