@@ -123,3 +123,27 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "homebrew: update formula to ${{ github.ref_name }}"
           git push origin main
+
+      - name: Sync to homebrew-frameterm tap
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING_SHA=$(gh api repos/stefanmatar/homebrew-frameterm/contents/Formula/frameterm.rb \
+            --jq '.sha' 2>/dev/null || echo "")
+          if [ -z "$EXISTING_SHA" ]; then
+            echo "Could not read homebrew-frameterm, skipping sync"
+            exit 0
+          fi
+
+          CONTENT=$(base64 -w0 Formula/frameterm.rb)
+
+          gh api repos/stefanmatar/homebrew-frameterm/contents/Formula/frameterm.rb \
+            -X PUT \
+            -f message="frameterm ${{ github.ref_name }}" \
+            -f content="$CONTENT" \
+            -f sha="$EXISTING_SHA" \
+            -f committer[name]="github-actions[bot]" \
+            -f committer[email]="github-actions[bot]@users.noreply.github.com"
+
+          echo "Synced formula to homebrew-frameterm tap"
