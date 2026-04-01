@@ -119,11 +119,7 @@ fn handle_connection(
     });
     let mut writer = stream;
 
-    loop {
-        let line = match read_line_lossy(&mut reader) {
-            Ok(l) => l,
-            Err(_) => break,
-        };
+    while let Ok(line) = read_line_lossy(&mut reader) {
         if line.is_empty() {
             break;
         }
