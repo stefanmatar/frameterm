@@ -344,6 +344,101 @@ fn snap_hash_same(ctx: &Ctx) {
     );
 }
 
+// -- When steps: rich unicode content --
+
+/// Simulate a TUI app rendering box-drawing borders via raw escape sequences.
+#[when("the screen displays box-drawing characters")]
+fn snap_screen_displays_box_drawing(mut ctx: Ctx) -> Ctx {
+    // Write raw terminal output that a TUI app would produce:
+    // box-drawing characters forming a panel border.
+    let tui_output = "\x1b[H\x1b[2J\
+        ┌──────────────────┐\r\n\
+        │  Status: Ready   │\r\n\
+        │  ├── Input       │\r\n\
+        │  └── Output      │\r\n\
+        └──────────────────┘\r\n";
+    ctx.manager.write_to_screen("app", tui_output).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    ctx
+}
+
+/// Simulate a TUI app rendering emoji and special glyphs.
+#[when("the screen displays emoji and special glyphs")]
+fn snap_screen_displays_emoji(mut ctx: Ctx) -> Ctx {
+    let tui_output = "\x1b[H\x1b[2J\
+        \u{2705} All checks passed\r\n\
+        \u{26A0}\u{FE0F}  Warning: disk space low\r\n\
+        \u{1F680} Deploying v2.1.0\r\n\
+        \u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\u{2501}\r\n\
+        \u{25CF} Online  \u{25CB} Offline\r\n";
+    ctx.manager.write_to_screen("app", tui_output).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    ctx
+}
+
+/// Simulate a TUI layout combining box-drawing, emoji, and standard text.
+#[when("the screen displays a TUI layout with mixed unicode")]
+fn snap_screen_displays_mixed_unicode(mut ctx: Ctx) -> Ctx {
+    let tui_output = "\x1b[H\x1b[2J\
+        \u{256D}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256E}\r\n\
+        \u{2502} \u{1F4E6} Tasks \u{2502}\r\n\
+        \u{251C}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2524}\r\n\
+        \u{2502} \u{2714} Build  \u{2502}\r\n\
+        \u{2502} \u{2718} Test   \u{2502}\r\n\
+        \u{2570}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256F}\r\n";
+    ctx.manager.write_to_screen("app", tui_output).unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(50));
+    ctx
+}
+
+// -- Then steps: rich unicode assertions --
+
+#[then("the text should contain the box-drawing characters")]
+fn snap_text_contains_box_drawing(ctx: &Ctx) {
+    let text = ctx.last_text_output.as_ref().expect("Expected text output");
+    assert!(
+        text.contains('┌') || text.contains('╭'),
+        "Expected box-drawing characters in snapshot text, got: {text}"
+    );
+    assert!(
+        text.contains('│'),
+        "Expected vertical box-drawing characters in snapshot text"
+    );
+}
+
+#[then("taking a JSON snapshot should succeed")]
+fn snap_json_format_succeeds(ctx: &Ctx) {
+    let snap = ctx
+        .manager
+        .snapshot("app", SnapshotFormat::Json)
+        .expect("JSON snapshot should succeed with rich unicode");
+    assert!(snap.text.is_some(), "JSON snapshot must include text field");
+    let text = snap.text.as_ref().unwrap();
+    assert!(!text.is_empty(), "JSON snapshot text must not be empty");
+    // Verify the text can be serialized to JSON without error
+    let json = serde_json::to_string(&snap).expect("Snapshot must serialize to valid JSON");
+    let _: serde_json::Value =
+        serde_json::from_str(&json).expect("Serialized snapshot must be valid JSON");
+}
+
+#[then("taking a compact snapshot should succeed")]
+fn snap_compact_format_succeeds(ctx: &Ctx) {
+    let snap = ctx
+        .manager
+        .snapshot("app", SnapshotFormat::Compact)
+        .expect("Compact snapshot should succeed with rich unicode");
+    assert!(snap.text.is_none(), "Compact snapshot must omit text field");
+}
+
+#[then("taking a text snapshot should succeed")]
+fn snap_text_format_succeeds(ctx: &Ctx) {
+    let text = ctx
+        .manager
+        .snapshot_as_text("app")
+        .expect("Text snapshot should succeed with rich unicode");
+    assert!(!text.is_empty(), "Text snapshot must not be empty");
+}
+
 // -- Scenario binding --
 
 #[scenario(path = "../../spec/snapshot.feature")]

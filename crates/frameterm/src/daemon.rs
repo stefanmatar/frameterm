@@ -86,29 +86,55 @@ pub fn run_daemon() {
     let _ = std::fs::remove_file(&sock);
 }
 
+/// Read a line of bytes from a buffered reader, terminated by `\n`.
+/// Uses lossy UTF-8 conversion to handle streams that may contain
+/// invalid byte sequences (e.g. from TUI apps with rich unicode rendering).
+fn read_line_lossy(reader: &mut BufReader<UnixStream>) -> Result<String, std::io::Error> {
+    let mut buf = Vec::new();
+    loop {
+        let available = reader.fill_buf()?;
+        if available.is_empty() {
+            break;
+        }
+        if let Some(pos) = available.iter().position(|&b| b == b'\n') {
+            buf.extend_from_slice(&available[..=pos]);
+            reader.consume(pos + 1);
+            break;
+        }
+        buf.extend_from_slice(available);
+        let len = available.len();
+        reader.consume(len);
+    }
+    Ok(String::from_utf8_lossy(&buf).into_owned())
+}
+
 fn handle_connection(
     stream: UnixStream,
     manager: &Arc<Mutex<SessionManager>>,
     last_activity: &Arc<Mutex<Instant>>,
 ) {
-    let reader = BufReader::new(match stream.try_clone() {
+    let mut reader = BufReader::new(match stream.try_clone() {
         Ok(s) => s,
         Err(_) => return,
     });
     let mut writer = stream;
 
-    for line in reader.lines() {
-        let line = match line {
+    loop {
+        let line = match read_line_lossy(&mut reader) {
             Ok(l) => l,
             Err(_) => break,
         };
+        if line.is_empty() {
+            break;
+        }
+        let line = line.trim();
         if line.is_empty() {
             continue;
         }
 
         *last_activity.lock().unwrap() = Instant::now();
 
-        let request: Request = match serde_json::from_str(&line) {
+        let request: Request = match serde_json::from_str(line) {
             Ok(r) => r,
             Err(e) => {
                 let resp = Response::error("INVALID_REQUEST", format!("Bad JSON: {e}"));

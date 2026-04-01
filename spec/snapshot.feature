@@ -45,3 +45,21 @@ Feature: Screen Snapshots
     When I take a snapshot and record the content_hash
     And I take another snapshot
     Then the content_hash should be the same
+
+  Scenario: Snapshot with box-drawing characters
+    When the screen displays box-drawing characters
+    And I run "frameterm snapshot -s app --format text"
+    Then the output should be plain text representing the screen
+    And the text should contain the box-drawing characters
+
+  Scenario: Snapshot with emoji and special glyphs
+    When the screen displays emoji and special glyphs
+    And I run "frameterm snapshot -s app"
+    Then the output should be valid JSON
+    And it should contain a "text" field with the screen contents
+
+  Scenario: All snapshot formats succeed with rich unicode
+    When the screen displays a TUI layout with mixed unicode
+    Then taking a JSON snapshot should succeed
+    And taking a compact snapshot should succeed
+    And taking a text snapshot should succeed

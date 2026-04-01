@@ -34,6 +34,27 @@ pub fn ensure_daemon() -> Result<(), String> {
     Err("daemon did not start within 5 seconds".to_string())
 }
 
+/// Read a line of bytes from a buffered reader, terminated by `\n`.
+/// Returns the bytes including the newline (if present).
+fn read_line_lossy(reader: &mut BufReader<UnixStream>) -> Result<String, String> {
+    let mut buf = Vec::new();
+    loop {
+        let available = reader.fill_buf().map_err(|e| format!("read error: {e}"))?;
+        if available.is_empty() {
+            break;
+        }
+        if let Some(pos) = available.iter().position(|&b| b == b'\n') {
+            buf.extend_from_slice(&available[..=pos]);
+            reader.consume(pos + 1);
+            break;
+        }
+        buf.extend_from_slice(available);
+        let len = available.len();
+        reader.consume(len);
+    }
+    Ok(String::from_utf8_lossy(&buf).into_owned())
+}
+
 pub fn send_request(request: &Request) -> Result<Response, String> {
     let sock = socket_path();
     let stream =
@@ -46,7 +67,7 @@ pub fn send_request(request: &Request) -> Result<Response, String> {
     let mut writer = stream
         .try_clone()
         .map_err(|e| format!("failed to clone stream: {e}"))?;
-    let reader = BufReader::new(stream);
+    let mut reader = BufReader::new(stream);
 
     let mut json = serde_json::to_string(request).map_err(|e| format!("serialize error: {e}"))?;
     json.push('\n');
@@ -55,11 +76,7 @@ pub fn send_request(request: &Request) -> Result<Response, String> {
         .map_err(|e| format!("write error: {e}"))?;
     writer.flush().map_err(|e| format!("flush error: {e}"))?;
 
-    let mut line = String::new();
-    let mut buf_reader = reader;
-    buf_reader
-        .read_line(&mut line)
-        .map_err(|e| format!("read error: {e}"))?;
+    let line = read_line_lossy(&mut reader)?;
 
     if line.is_empty() {
         return Err("daemon closed connection without responding".to_string());
