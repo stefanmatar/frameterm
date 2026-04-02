@@ -56,16 +56,35 @@ runs:
 
         ASSET="frameterm-${OS}-${ARCH}.tar.gz"
         URL="https://github.com/stefanmatar/frameterm/releases/download/v${VERSION}/${ASSET}"
+        CHECKSUM_URL="${URL}.sha256"
 
         echo "Installing frameterm v${VERSION} (${OS}/${ARCH})"
 
         INSTALL_DIR="${RUNNER_TEMP:-/tmp}/frameterm"
         mkdir -p "$INSTALL_DIR"
 
-        curl -sL "$URL" -o "${INSTALL_DIR}/frameterm.tar.gz"
-        tar -xzf "${INSTALL_DIR}/frameterm.tar.gz" -C "$INSTALL_DIR"
+        curl -sL "$URL" -o "${INSTALL_DIR}/${ASSET}"
+        curl -sL "$CHECKSUM_URL" -o "${INSTALL_DIR}/${ASSET}.sha256"
+
+        # Verify checksum before extraction (supply-chain protection)
+        EXPECTED=$(awk '{print $1}' "${INSTALL_DIR}/${ASSET}.sha256")
+        if command -v sha256sum &>/dev/null; then
+          ACTUAL=$(sha256sum "${INSTALL_DIR}/${ASSET}" | awk '{print $1}')
+        else
+          ACTUAL=$(shasum -a 256 "${INSTALL_DIR}/${ASSET}" | awk '{print $1}')
+        fi
+
+        if [ "$EXPECTED" != "$ACTUAL" ]; then
+          echo "::error::Checksum verification failed for ${ASSET}"
+          echo "  Expected: ${EXPECTED}"
+          echo "  Actual:   ${ACTUAL}"
+          exit 1
+        fi
+        echo "Checksum verified: ${EXPECTED}"
+
+        tar -xzf "${INSTALL_DIR}/${ASSET}" -C "$INSTALL_DIR"
         chmod +x "${INSTALL_DIR}/frameterm"
-        rm "${INSTALL_DIR}/frameterm.tar.gz"
+        rm "${INSTALL_DIR}/${ASSET}" "${INSTALL_DIR}/${ASSET}.sha256"
 
         echo "${INSTALL_DIR}" >> "$GITHUB_PATH"
         echo "frameterm v${VERSION} installed to ${INSTALL_DIR}"
