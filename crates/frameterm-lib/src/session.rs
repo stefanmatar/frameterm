@@ -150,7 +150,7 @@ impl SessionManager {
         }
     }
 
-    pub fn spawn(&mut self, opts: SpawnOptions) -> Result<String, SessionError> {
+    pub fn spawn(&self, opts: SpawnOptions) -> Result<String, SessionError> {
         let name = opts
             .name
             .unwrap_or_else(|| Self::resolve_session_name(None));
@@ -229,9 +229,9 @@ impl SessionManager {
         // Drop the slave so the child owns the only reference to it.
         drop(pair.slave);
 
-        // Allow the background reader thread to process initial PTY output
-        // (e.g. shell prompt) before returning control to the caller.
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        // Brief pause for the PTY reader thread to process initial output.
+        // Callers that need reliable synchronization should use wait-for.
+        std::thread::sleep(std::time::Duration::from_millis(10));
 
         let info = SessionInfo {
             name: name.clone(),
@@ -272,7 +272,7 @@ impl SessionManager {
         Ok(name)
     }
 
-    pub fn kill(&mut self, name: &str) -> Result<(), SessionError> {
+    pub fn kill(&self, name: &str) -> Result<(), SessionError> {
         let mut inner = self.inner.lock().unwrap();
         if let Some(state) = inner.sessions.remove(name) {
             state.pty.kill();
@@ -291,7 +291,7 @@ impl SessionManager {
         inner.sessions.values().map(|s| s.info.clone()).collect()
     }
 
-    pub fn stop(&mut self) -> Result<(), SessionError> {
+    pub fn stop(&self) -> Result<(), SessionError> {
         let mut inner = self.inner.lock().unwrap();
         for (_, state) in inner.sessions.drain() {
             state.pty.kill();
@@ -304,7 +304,7 @@ impl SessionManager {
         inner.sessions.get(name).map(|s| s.info.clone())
     }
 
-    pub fn resize(&mut self, name: &str, cols: u16, rows: u16) -> Result<(), SessionError> {
+    pub fn resize(&self, name: &str, cols: u16, rows: u16) -> Result<(), SessionError> {
         let mut inner = self.inner.lock().unwrap();
         let state = inner.sessions.get_mut(name).ok_or_else(|| SessionError {
             code: SessionErrorCode::SessionNotFound,
@@ -353,17 +353,19 @@ impl SessionManager {
         &self,
         name: &str,
         previous_hash: &str,
-        _settle_ms: Option<u64>,
+        settle_ms: Option<u64>,
         timeout_ms: Option<u64>,
     ) -> Result<Snapshot, SessionError> {
         let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(30_000));
+        let settle = std::time::Duration::from_millis(settle_ms.unwrap_or(0));
         let start = std::time::Instant::now();
-        let poll_interval = std::time::Duration::from_millis(50);
+        let poll_interval = std::time::Duration::from_millis(10);
 
-        loop {
+        // Phase 1: wait for the screen to differ from previous_hash.
+        let mut snap = loop {
             let snap = self.snapshot(name, SnapshotFormat::Json)?;
             if snap.content_hash != previous_hash {
-                return Ok(snap);
+                break snap;
             }
             if start.elapsed() >= timeout {
                 return Err(SessionError {
@@ -376,10 +378,36 @@ impl SessionManager {
                 });
             }
             std::thread::sleep(poll_interval);
+        };
+
+        // Phase 2: if settle > 0, wait for the screen to stop changing
+        // for at least `settle` duration (the screen has stabilized).
+        if !settle.is_zero() {
+            let mut last_hash = snap.content_hash.clone();
+            let mut last_change = std::time::Instant::now();
+
+            loop {
+                if start.elapsed() >= timeout {
+                    // Hit overall timeout during settle — return what we have.
+                    break;
+                }
+                if last_change.elapsed() >= settle {
+                    // Screen hasn't changed for the settle duration — stable.
+                    break;
+                }
+                std::thread::sleep(poll_interval);
+                snap = self.snapshot(name, SnapshotFormat::Json)?;
+                if snap.content_hash != last_hash {
+                    last_hash = snap.content_hash.clone();
+                    last_change = std::time::Instant::now();
+                }
+            }
         }
+
+        Ok(snap)
     }
 
-    pub fn type_text(&mut self, name: &str, text: &str) -> Result<(), SessionError> {
+    pub fn type_text(&self, name: &str, text: &str) -> Result<(), SessionError> {
         let mut inner = self.inner.lock().unwrap();
         let state = inner.sessions.get_mut(name).ok_or_else(|| SessionError {
             code: SessionErrorCode::SessionNotFound,
@@ -408,8 +436,6 @@ impl SessionManager {
             });
         }
 
-        std::thread::sleep(std::time::Duration::from_millis(50));
-
         let cells = state.terminal.cells();
         state
             .recording
@@ -418,20 +444,8 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn send_key(&mut self, name: &str, key_name: &str) -> Result<(), SessionError> {
-        {
-            let inner = self.inner.lock().unwrap();
-            if !inner.sessions.contains_key(name) {
-                return Err(SessionError {
-                    code: SessionErrorCode::SessionNotFound,
-                    message: format!("Session '{name}' not found"),
-                    suggestion: Some(
-                        "Run frameterm list-sessions to see active sessions".to_string(),
-                    ),
-                });
-            }
-        }
-
+    pub fn send_key(&self, name: &str, key_name: &str) -> Result<(), SessionError> {
+        // Parse key outside the lock — pure computation, no session access needed.
         let key_event = parse_key(key_name).ok_or_else(|| SessionError {
             code: SessionErrorCode::InvalidKey,
             message: format!("Invalid key: '{key_name}'"),
@@ -449,8 +463,13 @@ impl SessionManager {
             suggestion: None,
         })?;
 
+        // Single lock: check existence + write + record in one critical section.
         let mut inner = self.inner.lock().unwrap();
-        let state = inner.sessions.get_mut(name).unwrap();
+        let state = inner.sessions.get_mut(name).ok_or_else(|| SessionError {
+            code: SessionErrorCode::SessionNotFound,
+            message: format!("Session '{name}' not found"),
+            suggestion: Some("Run frameterm list-sessions to see active sessions".to_string()),
+        })?;
 
         state.pty.write_bytes(&bytes).map_err(|e| SessionError {
             code: SessionErrorCode::SpawnFailed,
@@ -473,7 +492,7 @@ impl SessionManager {
     }
 
     pub fn send_key_sequence(
-        &mut self,
+        &self,
         name: &str,
         sequence: &str,
         delay_ms: Option<u64>,
@@ -493,7 +512,7 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn click(&mut self, name: &str, row: u16, col: u16) -> Result<(), SessionError> {
+    pub fn click(&self, name: &str, row: u16, col: u16) -> Result<(), SessionError> {
         let mut inner = self.inner.lock().unwrap();
         let state = inner.sessions.get_mut(name).ok_or_else(|| SessionError {
             code: SessionErrorCode::SessionNotFound,
@@ -534,7 +553,7 @@ impl SessionManager {
     }
 
     pub fn scroll(
-        &mut self,
+        &self,
         name: &str,
         direction: ScrollDirection,
         lines: u16,
@@ -587,7 +606,7 @@ impl SessionManager {
 
         let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(30_000));
         let start = std::time::Instant::now();
-        let poll_interval = std::time::Duration::from_millis(50);
+        let poll_interval = std::time::Duration::from_millis(10);
 
         loop {
             let found = {
@@ -655,7 +674,7 @@ impl SessionManager {
 
         let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(30_000));
         let start = std::time::Instant::now();
-        let poll_interval = std::time::Duration::from_millis(50);
+        let poll_interval = std::time::Duration::from_millis(10);
 
         loop {
             let found = {
@@ -694,7 +713,7 @@ impl SessionManager {
         }
     }
 
-    pub fn write_to_screen(&mut self, name: &str, text: &str) -> Result<(), SessionError> {
+    pub fn write_to_screen(&self, name: &str, text: &str) -> Result<(), SessionError> {
         let mut inner = self.inner.lock().unwrap();
         let state = inner.sessions.get_mut(name).ok_or_else(|| SessionError {
             code: SessionErrorCode::SessionNotFound,
@@ -836,7 +855,7 @@ impl SessionManager {
         inner.sessions.get(name).map(|s| s.recording.clone())
     }
 
-    pub fn advance_time(&mut self, name: &str, ms: u64) -> Result<(), SessionError> {
+    pub fn advance_time(&self, name: &str, ms: u64) -> Result<(), SessionError> {
         let mut inner = self.inner.lock().unwrap();
         let state = inner.sessions.get_mut(name).ok_or_else(|| SessionError {
             code: SessionErrorCode::SessionNotFound,
@@ -847,7 +866,7 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn simulate_activity(&mut self, name: &str) -> Result<(), SessionError> {
+    pub fn simulate_activity(&self, name: &str) -> Result<(), SessionError> {
         self.type_text(name, "activity")?;
         let mut inner = self.inner.lock().unwrap();
         let state = inner.sessions.get_mut(name).unwrap();

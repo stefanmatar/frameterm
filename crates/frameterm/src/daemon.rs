@@ -3,10 +3,11 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+// Note: Mutex is still used for last_activity only. SessionManager uses interior mutability.
 
 use frameterm_lib::{ScrollDirection, SessionError, SessionManager, SnapshotFormat, SpawnOptions};
 
-use crate::protocol::{Request, Response};
+use crate::protocol::{Envelope, Request, Response};
 
 const IDLE_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 
@@ -52,12 +53,16 @@ pub fn run_daemon() {
         .set_nonblocking(true)
         .expect("failed to set listener non-blocking");
 
-    let manager = Arc::new(Mutex::new(SessionManager::new()));
+    let manager = Arc::new(SessionManager::new());
     let last_activity = Arc::new(Mutex::new(Instant::now()));
 
     loop {
         match listener.accept() {
             Ok((stream, _)) => {
+                // Accepted sockets may inherit non-blocking from the listener
+                // on some platforms. Force blocking with a read timeout.
+                stream.set_nonblocking(false).ok();
+                stream.set_read_timeout(Some(Duration::from_secs(120))).ok();
                 *last_activity.lock().unwrap() = Instant::now();
                 let mgr = Arc::clone(&manager);
                 let activity = Arc::clone(&last_activity);
@@ -67,10 +72,7 @@ pub fn run_daemon() {
             }
             Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 let idle = last_activity.lock().unwrap().elapsed();
-                let has_sessions = {
-                    let mgr = manager.lock().unwrap();
-                    !mgr.list().is_empty()
-                };
+                let has_sessions = !manager.list().is_empty();
                 if idle >= IDLE_TIMEOUT && !has_sessions {
                     break;
                 }
@@ -92,32 +94,49 @@ pub fn run_daemon() {
 fn read_line_lossy(reader: &mut BufReader<UnixStream>) -> Result<String, std::io::Error> {
     let mut buf = Vec::new();
     loop {
-        let available = reader.fill_buf()?;
-        if available.is_empty() {
-            break;
+        match reader.fill_buf() {
+            Ok(available) => {
+                if available.is_empty() {
+                    break;
+                }
+                if let Some(pos) = available.iter().position(|&b| b == b'\n') {
+                    buf.extend_from_slice(&available[..=pos]);
+                    reader.consume(pos + 1);
+                    break;
+                }
+                buf.extend_from_slice(available);
+                let len = available.len();
+                reader.consume(len);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                if !buf.is_empty() {
+                    // Partial line read, keep trying
+                    std::thread::sleep(Duration::from_millis(1));
+                    continue;
+                }
+                // No data yet, wait briefly and retry
+                std::thread::sleep(Duration::from_millis(1));
+                continue;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                continue;
+            }
+            Err(e) => return Err(e),
         }
-        if let Some(pos) = available.iter().position(|&b| b == b'\n') {
-            buf.extend_from_slice(&available[..=pos]);
-            reader.consume(pos + 1);
-            break;
-        }
-        buf.extend_from_slice(available);
-        let len = available.len();
-        reader.consume(len);
     }
     Ok(String::from_utf8_lossy(&buf).into_owned())
 }
 
 fn handle_connection(
     stream: UnixStream,
-    manager: &Arc<Mutex<SessionManager>>,
+    manager: &Arc<SessionManager>,
     last_activity: &Arc<Mutex<Instant>>,
 ) {
     let mut reader = BufReader::new(match stream.try_clone() {
         Ok(s) => s,
         Err(_) => return,
     });
-    let mut writer = stream;
+    let writer = Arc::new(Mutex::new(stream));
 
     while let Ok(line) = read_line_lossy(&mut reader) {
         if line.is_empty() {
@@ -130,30 +149,44 @@ fn handle_connection(
 
         *last_activity.lock().unwrap() = Instant::now();
 
-        let request: Request = match serde_json::from_str(line) {
-            Ok(r) => r,
+        let envelope: Envelope = match serde_json::from_str(line) {
+            Ok(e) => e,
             Err(e) => {
                 let resp = Response::error("INVALID_REQUEST", format!("Bad JSON: {e}"));
-                let _ = send_response(&mut writer, &resp);
+                let _ = send_response(&writer, &resp);
                 continue;
             }
         };
 
-        let response = dispatch(request, manager);
-        if send_response(&mut writer, &response).is_err() {
-            break;
+        if envelope.id.is_some() {
+            // Multiplexed: dispatch on a separate thread so this connection
+            // can accept more requests while long-running commands (e.g.
+            // wait-for) are still in flight.
+            let mgr = Arc::clone(manager);
+            let w = Arc::clone(&writer);
+            std::thread::spawn(move || {
+                let response = dispatch(envelope.request, &mgr).with_id(envelope.id);
+                let _ = send_response(&w, &response);
+            });
+        } else {
+            // No ID: serial dispatch (backward compatible, zero overhead).
+            let response = dispatch(envelope.request, manager);
+            if send_response(&writer, &response).is_err() {
+                break;
+            }
         }
     }
 }
 
-fn send_response(writer: &mut UnixStream, resp: &Response) -> std::io::Result<()> {
+fn send_response(writer: &Arc<Mutex<UnixStream>>, resp: &Response) -> std::io::Result<()> {
     let mut json = serde_json::to_string(resp)?;
     json.push('\n');
-    writer.write_all(json.as_bytes())?;
-    writer.flush()
+    let mut w = writer.lock().unwrap();
+    w.write_all(json.as_bytes())?;
+    w.flush()
 }
 
-fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response {
+fn dispatch(request: Request, manager: &SessionManager) -> Response {
     match request {
         Request::Spawn {
             name,
@@ -175,8 +208,7 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
                 fps,
                 no_record,
             };
-            let mut mgr = manager.lock().unwrap();
-            match mgr.spawn(opts) {
+            match manager.spawn(opts) {
                 Ok(session_name) => Response::success(serde_json::json!({
                     "session": session_name,
                     "status": "created",
@@ -192,18 +224,17 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
             settle,
             timeout,
         } => {
-            let mgr = manager.lock().unwrap();
             if let Some(prev_hash) = await_change {
-                match mgr.snapshot_await_change(&session, &prev_hash, settle, timeout) {
+                match manager.snapshot_await_change(&session, &prev_hash, settle, timeout) {
                     Ok(snap) => Response::success(serde_json::to_value(&snap).unwrap()),
                     Err(e) => session_error_response(&e),
                 }
             } else {
                 let fmt = SnapshotFormat::parse(&format);
-                match mgr.snapshot(&session, fmt) {
+                match manager.snapshot(&session, fmt) {
                     Ok(snap) => {
                         if fmt == SnapshotFormat::Text {
-                            match mgr.snapshot_as_text(&session) {
+                            match manager.snapshot_as_text(&session) {
                                 Ok(text) => Response::success(serde_json::json!({
                                     "text": text,
                                     "snapshot": serde_json::to_value(&snap).unwrap(),
@@ -219,26 +250,22 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
             }
         }
 
-        Request::Type { session, text } => {
-            let mut mgr = manager.lock().unwrap();
-            match mgr.type_text(&session, &text) {
-                Ok(()) => Response::success(serde_json::json!({
-                    "session": session,
-                    "status": "typed",
-                })),
-                Err(e) => session_error_response(&e),
-            }
-        }
+        Request::Type { session, text } => match manager.type_text(&session, &text) {
+            Ok(()) => Response::success(serde_json::json!({
+                "session": session,
+                "status": "typed",
+            })),
+            Err(e) => session_error_response(&e),
+        },
 
         Request::Key {
             session,
             keys,
             delay,
         } => {
-            let mut mgr = manager.lock().unwrap();
             let key_parts: Vec<&str> = keys.split_whitespace().collect();
             if key_parts.len() > 1 || delay.is_some() {
-                match mgr.send_key_sequence(&session, &keys, delay) {
+                match manager.send_key_sequence(&session, &keys, delay) {
                     Ok(()) => Response::success(serde_json::json!({
                         "session": session,
                         "status": "sent",
@@ -246,7 +273,7 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
                     Err(e) => session_error_response(&e),
                 }
             } else {
-                match mgr.send_key(&session, &keys) {
+                match manager.send_key(&session, &keys) {
                     Ok(()) => Response::success(serde_json::json!({
                         "session": session,
                         "status": "sent",
@@ -256,16 +283,13 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
             }
         }
 
-        Request::Click { session, row, col } => {
-            let mut mgr = manager.lock().unwrap();
-            match mgr.click(&session, row, col) {
-                Ok(()) => Response::success(serde_json::json!({
-                    "session": session,
-                    "status": "clicked",
-                })),
-                Err(e) => session_error_response(&e),
-            }
-        }
+        Request::Click { session, row, col } => match manager.click(&session, row, col) {
+            Ok(()) => Response::success(serde_json::json!({
+                "session": session,
+                "status": "clicked",
+            })),
+            Err(e) => session_error_response(&e),
+        },
 
         Request::Scroll {
             session,
@@ -276,8 +300,7 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
                 "up" => ScrollDirection::Up,
                 _ => ScrollDirection::Down,
             };
-            let mut mgr = manager.lock().unwrap();
-            match mgr.scroll(&session, dir, lines) {
+            match manager.scroll(&session, dir, lines) {
                 Ok(()) => Response::success(serde_json::json!({
                     "session": session,
                     "status": "scrolled",
@@ -290,16 +313,13 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
             session,
             cols,
             rows,
-        } => {
-            let mut mgr = manager.lock().unwrap();
-            match mgr.resize(&session, cols, rows) {
-                Ok(()) => Response::success(serde_json::json!({
-                    "session": session,
-                    "status": "resized",
-                })),
-                Err(e) => session_error_response(&e),
-            }
-        }
+        } => match manager.resize(&session, cols, rows) {
+            Ok(()) => Response::success(serde_json::json!({
+                "session": session,
+                "status": "resized",
+            })),
+            Err(e) => session_error_response(&e),
+        },
 
         Request::WaitFor {
             session,
@@ -308,9 +328,8 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
             not,
             timeout,
         } => {
-            let mgr = manager.lock().unwrap();
             if not {
-                match mgr.wait_for_not(&session, &pattern, regex, timeout) {
+                match manager.wait_for_not(&session, &pattern, regex, timeout) {
                     Ok(()) => Response::success(serde_json::json!({
                         "session": session,
                         "status": "cleared",
@@ -318,7 +337,7 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
                     Err(e) => session_error_response(&e),
                 }
             } else {
-                match mgr.wait_for(&session, &pattern, regex, timeout) {
+                match manager.wait_for(&session, &pattern, regex, timeout) {
                     Ok(()) => Response::success(serde_json::json!({
                         "session": session,
                         "status": "found",
@@ -336,12 +355,17 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
             output,
             width,
         } => {
-            let mgr = manager.lock().unwrap();
             if all {
-                let sessions: Vec<String> = mgr.list().iter().map(|s| s.name.clone()).collect();
+                let sessions: Vec<String> = manager.list().iter().map(|s| s.name.clone()).collect();
                 let mut exports = Vec::new();
                 for s in &sessions {
-                    match mgr.export_recording(s, output.as_deref(), no_overlay, no_footer, width) {
+                    match manager.export_recording(
+                        s,
+                        output.as_deref(),
+                        no_overlay,
+                        no_footer,
+                        width,
+                    ) {
                         Ok(export) => exports.push(serde_json::to_value(&export).unwrap()),
                         Err(e) => return session_error_response(&e),
                     }
@@ -349,7 +373,13 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
                 Response::success(serde_json::json!({ "exports": exports }))
             } else {
                 let name = session.unwrap_or_else(|| "default".to_string());
-                match mgr.export_recording(&name, output.as_deref(), no_overlay, no_footer, width) {
+                match manager.export_recording(
+                    &name,
+                    output.as_deref(),
+                    no_overlay,
+                    no_footer,
+                    width,
+                ) {
                     Ok(export) => Response::success(serde_json::to_value(&export).unwrap()),
                     Err(e) => session_error_response(&e),
                 }
@@ -357,25 +387,20 @@ fn dispatch(request: Request, manager: &Arc<Mutex<SessionManager>>) -> Response 
         }
 
         Request::ListSessions => {
-            let mgr = manager.lock().unwrap();
-            let sessions = mgr.list();
+            let sessions = manager.list();
             Response::success(serde_json::to_value(&sessions).unwrap())
         }
 
-        Request::Kill { session } => {
-            let mut mgr = manager.lock().unwrap();
-            match mgr.kill(&session) {
-                Ok(()) => Response::success(serde_json::json!({
-                    "session": session,
-                    "status": "killed",
-                })),
-                Err(e) => session_error_response(&e),
-            }
-        }
+        Request::Kill { session } => match manager.kill(&session) {
+            Ok(()) => Response::success(serde_json::json!({
+                "session": session,
+                "status": "killed",
+            })),
+            Err(e) => session_error_response(&e),
+        },
 
         Request::Stop => {
-            let mut mgr = manager.lock().unwrap();
-            let _ = mgr.stop();
+            let _ = manager.stop();
             Response::success(serde_json::json!({ "status": "stopped" }))
         }
 

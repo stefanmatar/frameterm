@@ -31,7 +31,7 @@ fn ctx() -> Ctx {
 // -- Given steps --
 
 #[given("a session {name} is running")]
-fn tc_session_is_running(mut ctx: Ctx, name: String) -> Ctx {
+fn tc_session_is_running(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let _ = ctx.manager.spawn(SpawnOptions {
         name: Some(name),
@@ -49,7 +49,7 @@ fn tc_session_is_running(mut ctx: Ctx, name: String) -> Ctx {
 // -- When steps --
 
 #[when("I run {command}")]
-fn tc_run_command(mut ctx: Ctx, command: String) -> Ctx {
+fn tc_run_command(ctx: Ctx, command: String) -> Ctx {
     let command = unquote(&command);
     let parts: Vec<&str> = command.split_whitespace().collect();
     let parts = if parts.first() == Some(&"frameterm") {

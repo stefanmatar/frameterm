@@ -41,7 +41,7 @@ fn ctx() -> Ctx {
 // -- Given steps --
 
 #[given("a session {name} is running")]
-fn a_session_is_running(mut ctx: Ctx, name: String) -> Ctx {
+fn a_session_is_running(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let result = ctx.manager.spawn(SpawnOptions {
         name: Some(name.clone()),
@@ -69,7 +69,7 @@ fn a_session_is_running(mut ctx: Ctx, name: String) -> Ctx {
 }
 
 #[given("a session {name} is running {command}")]
-fn a_session_is_running_command(mut ctx: Ctx, name: String, command: String) -> Ctx {
+fn a_session_is_running_command(ctx: Ctx, name: String, command: String) -> Ctx {
     let name = unquote(&name);
     let command = unquote(&command);
     let result = ctx.manager.spawn(SpawnOptions {
@@ -184,7 +184,7 @@ fn run_command(mut ctx: Ctx, command: String) -> Ctx {
 }
 
 #[when("the process in {name} exits")]
-fn process_exits(mut ctx: Ctx, name: String) -> Ctx {
+fn process_exits(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let _ = ctx.manager.kill(&name);
     ctx

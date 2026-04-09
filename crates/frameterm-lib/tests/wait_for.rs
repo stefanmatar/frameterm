@@ -35,7 +35,7 @@ fn ctx() -> Ctx {
 // -- Given steps --
 
 #[given("a session {name} is running")]
-fn wf_session_running(mut ctx: Ctx, name: String) -> Ctx {
+fn wf_session_running(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let result = ctx.manager.spawn(SpawnOptions {
         name: Some(name.clone()),
@@ -54,7 +54,7 @@ fn wf_session_running(mut ctx: Ctx, name: String) -> Ctx {
 }
 
 #[given("the screen already contains {text}")]
-fn wf_screen_contains(mut ctx: Ctx, text: String) -> Ctx {
+fn wf_screen_contains(ctx: Ctx, text: String) -> Ctx {
     let text = unquote(&text);
     let _ = ctx.manager.type_text("app", &text);
     std::thread::sleep(std::time::Duration::from_millis(200));
@@ -74,7 +74,7 @@ fn wf_screen_contains(mut ctx: Ctx, text: String) -> Ctx {
 // -- When steps --
 
 #[when("the application will eventually display {text}")]
-fn wf_will_display(mut ctx: Ctx, text: String) -> Ctx {
+fn wf_will_display(ctx: Ctx, text: String) -> Ctx {
     let text = unquote(&text);
     let session = if ctx.manager.get("default").is_some() {
         "default"

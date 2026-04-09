@@ -31,7 +31,7 @@ fn ctx() -> Ctx {
 // -- Given steps --
 
 #[given("a session {name} is running {command}")]
-fn kb_session_running_cmd(mut ctx: Ctx, name: String, command: String) -> Ctx {
+fn kb_session_running_cmd(ctx: Ctx, name: String, command: String) -> Ctx {
     let name = unquote(&name);
     let command = unquote(&command);
     let result = ctx.manager.spawn(SpawnOptions {

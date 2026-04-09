@@ -32,7 +32,7 @@ fn ctx() -> Ctx {
 // -- Given steps --
 
 #[given("a session {name} is running")]
-fn mouse_session_running(mut ctx: Ctx, name: String) -> Ctx {
+fn mouse_session_running(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let result = ctx.manager.spawn(SpawnOptions {
         name: Some(name.clone()),

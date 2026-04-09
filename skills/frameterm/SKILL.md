@@ -62,7 +62,47 @@ frameterm kill -s myapp                # Kill specific session
 frameterm list-sessions                # List all active sessions
 frameterm stop                         # Stop daemon and all sessions
 frameterm daemon                       # Manually start daemon (usually auto-starts)
+frameterm pipe                         # Stream JSON commands via persistent connection
 ```
+
+#### Pipe mode
+
+`frameterm pipe` opens a single persistent Unix socket connection to the daemon
+and relays JSON lines between stdin/stdout. This avoids the overhead of
+fork/connect per command, making it significantly faster for high-throughput
+workflows (e.g. AI agents issuing many rapid commands).
+
+```bash
+# Send commands as JSON lines on stdin, receive responses on stdout
+frameterm pipe <<'EOF'
+{"command":"spawn","name":"demo","cmd":"bash","args":[]}
+{"command":"wait_for","session":"demo","pattern":"$","regex":false,"not":false,"timeout":5000}
+{"command":"type","session":"demo","text":"echo hello"}
+{"command":"key","session":"demo","keys":"Enter","delay":null}
+{"command":"kill","session":"demo"}
+EOF
+```
+
+**Multiplexed requests:** Add an `"id"` field to any request to enable concurrent
+dispatch. The daemon echoes the `id` back in the response, allowing clients to
+match responses to requests when multiple are in flight. Requests without an `id`
+are processed serially (backward compatible). Responses with `id` may arrive in
+any order.
+
+```bash
+# Concurrent: spawn + ping in parallel — responses arrive as each completes
+frameterm pipe <<'EOF'
+{"id":"1","command":"spawn","name":"s1","cmd":"bash","args":[],"no_record":true}
+{"id":"2","command":"ping"}
+{"id":"3","command":"wait_for","session":"s1","pattern":"$","regex":false,"not":false,"timeout":5000}
+EOF
+# Output (order depends on completion time):
+# {"ok":true,"id":"2","data":{"status":"pong"}}
+# {"ok":true,"id":"1","data":{"session":"s1","status":"created"}}
+# {"ok":true,"id":"3","data":{"session":"s1","status":"found"}}
+```
+
+Pipe mode exits 0 on clean stdin EOF, exits 1 if the daemon connection drops.
 
 ### Screen capture
 

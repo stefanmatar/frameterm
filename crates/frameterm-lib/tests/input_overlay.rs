@@ -45,7 +45,7 @@ fn ctx() -> Ctx {
 // -- Given steps --
 
 #[given("a session {name} is running and recording")]
-fn ov_session_recording(mut ctx: Ctx, name: String) -> Ctx {
+fn ov_session_recording(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let result = ctx.manager.spawn(SpawnOptions {
         name: Some(name.clone()),
@@ -232,13 +232,13 @@ fn ov_export(mut ctx: Ctx) -> Ctx {
 }
 
 #[when("I wait 2 seconds")]
-fn ov_wait_2s(mut ctx: Ctx) -> Ctx {
+fn ov_wait_2s(ctx: Ctx) -> Ctx {
     let _ = ctx.manager.advance_time("demo", 2000);
     ctx
 }
 
 #[when("I send various inputs")]
-fn ov_send_various(mut ctx: Ctx) -> Ctx {
+fn ov_send_various(ctx: Ctx) -> Ctx {
     let _ = ctx.manager.type_text("demo", "test");
     let _ = ctx.manager.click("demo", 5, 5);
     std::thread::sleep(std::time::Duration::from_millis(100));
@@ -246,7 +246,7 @@ fn ov_send_various(mut ctx: Ctx) -> Ctx {
 }
 
 #[when("I send input at various times")]
-fn ov_send_at_times(mut ctx: Ctx) -> Ctx {
+fn ov_send_at_times(ctx: Ctx) -> Ctx {
     let _ = ctx.manager.type_text("demo", "a");
     let _ = ctx.manager.advance_time("demo", 500);
     let _ = ctx.manager.type_text("demo", "b");
