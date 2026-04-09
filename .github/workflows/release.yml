@@ -125,27 +125,24 @@ jobs:
           git push origin main
 
       - name: Sync to homebrew-frameterm tap
-        continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
-          EXISTING_SHA=$(gh api repos/stefanmatar/homebrew-frameterm/contents/Formula/frameterm.rb \
-            --jq '.sha' 2>/dev/null || echo "")
-          if [ -z "$EXISTING_SHA" ]; then
-            echo "Could not read homebrew-frameterm, skipping sync"
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN secret is not set — skipping tap sync."
+            echo "Users will need to 'brew untap && brew tap' to pick up the new version."
             exit 0
           fi
 
-          CONTENT=$(base64 -w0 Formula/frameterm.rb)
-
-          gh api repos/stefanmatar/homebrew-frameterm/contents/Formula/frameterm.rb \
-            -X PUT \
-            -f message="frameterm ${{ github.ref_name }}" \
-            -f content="$CONTENT" \
-            -f sha="$EXISTING_SHA" \
-            -f committer[name]="github-actions[bot]" \
-            -f committer[email]="github-actions[bot]@users.noreply.github.com"
-
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/stefanmatar/homebrew-frameterm.git" tap
+          cp Formula/frameterm.rb tap/Formula/frameterm.rb
+          cd tap
+          git diff --quiet && { echo "Tap formula already up to date"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/frameterm.rb
+          git commit -m "frameterm ${{ github.ref_name }}"
+          git push
           echo "Synced formula to homebrew-frameterm tap"
 
   update-action-tag:
