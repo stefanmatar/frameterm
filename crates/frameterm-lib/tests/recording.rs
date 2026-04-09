@@ -49,7 +49,7 @@ fn ctx() -> Ctx {
 /// Spawn a real bash session with some activity
 /// to produce real recording frames.
 fn spawn_with_activity(
-    manager: &mut SessionManager,
+    manager: &SessionManager,
     name: &str,
     fps: Option<u32>,
     no_record: bool,
@@ -78,9 +78,9 @@ fn spawn_with_activity(
 // -- Given steps --
 
 #[given("a session {name} has been running with activity")]
-fn rec_session_with_activity(mut ctx: Ctx, name: String) -> Ctx {
+fn rec_session_with_activity(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
-    spawn_with_activity(&mut ctx.manager, &name, None, false, None, None);
+    spawn_with_activity(&ctx.manager, &name, None, false, None, None);
     ctx
 }
 
@@ -88,7 +88,7 @@ fn rec_session_with_activity(mut ctx: Ctx, name: String) -> Ctx {
     "a session {name} has been running with \
      activity at {fps_flag}"
 )]
-fn rec_session_with_fps(mut ctx: Ctx, name: String, fps_flag: String) -> Ctx {
+fn rec_session_with_fps(ctx: Ctx, name: String, fps_flag: String) -> Ctx {
     let name = unquote(&name);
     let fps_flag = unquote(&fps_flag);
     let fps: u32 = fps_flag
@@ -97,21 +97,21 @@ fn rec_session_with_fps(mut ctx: Ctx, name: String, fps_flag: String) -> Ctx {
         .trim()
         .parse()
         .unwrap_or(10);
-    spawn_with_activity(&mut ctx.manager, &name, Some(fps), false, None, None);
+    spawn_with_activity(&ctx.manager, &name, Some(fps), false, None, None);
     ctx
 }
 
 #[given("a session {name} is running")]
-fn rec_session_running(mut ctx: Ctx, name: String) -> Ctx {
+fn rec_session_running(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
-    spawn_with_activity(&mut ctx.manager, &name, None, false, None, None);
+    spawn_with_activity(&ctx.manager, &name, None, false, None, None);
     ctx
 }
 
 #[given("a session {name} has been running")]
-fn rec_session_been_running(mut ctx: Ctx, name: String) -> Ctx {
+fn rec_session_been_running(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
-    spawn_with_activity(&mut ctx.manager, &name, None, false, None, None);
+    spawn_with_activity(&ctx.manager, &name, None, false, None, None);
     ctx
 }
 
@@ -119,9 +119,9 @@ fn rec_session_been_running(mut ctx: Ctx, name: String) -> Ctx {
     "a session {name} has been running \
      for 10 seconds"
 )]
-fn rec_session_ten_seconds(mut ctx: Ctx, name: String) -> Ctx {
+fn rec_session_ten_seconds(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
-    spawn_with_activity(&mut ctx.manager, &name, None, false, None, None);
+    spawn_with_activity(&ctx.manager, &name, None, false, None, None);
     let _ = ctx.manager.advance_time(&name, 9000);
     let _ = ctx.manager.type_text(&name, "more");
     std::thread::sleep(std::time::Duration::from_millis(100));
@@ -129,9 +129,9 @@ fn rec_session_ten_seconds(mut ctx: Ctx, name: String) -> Ctx {
 }
 
 #[given("a session {name} is running at 80x24")]
-fn rec_session_at_size(mut ctx: Ctx, name: String) -> Ctx {
+fn rec_session_at_size(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
-    spawn_with_activity(&mut ctx.manager, &name, None, false, Some(80), Some(24));
+    spawn_with_activity(&ctx.manager, &name, None, false, Some(80), Some(24));
     ctx
 }
 
@@ -139,7 +139,7 @@ fn rec_session_at_size(mut ctx: Ctx, name: String) -> Ctx {
     "a session {name} was just spawned \
      with no activity"
 )]
-fn rec_session_no_activity(mut ctx: Ctx, name: String) -> Ctx {
+fn rec_session_no_activity(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let result = ctx.manager.spawn(SpawnOptions {
         name: Some(name.clone()),
@@ -371,7 +371,7 @@ fn rec_export(mut ctx: Ctx) -> Ctx {
 }
 
 #[when("I continue interacting with session {name}")]
-fn rec_continue_interacting(mut ctx: Ctx, name: String) -> Ctx {
+fn rec_continue_interacting(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let _ = ctx.manager.type_text(&name, "more input");
     std::thread::sleep(std::time::Duration::from_millis(100));

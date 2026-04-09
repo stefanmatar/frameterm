@@ -38,7 +38,7 @@ fn ctx() -> Ctx {
 // -- Given steps --
 
 #[given("a session {name} is running")]
-fn snap_session_is_running(mut ctx: Ctx, name: String) -> Ctx {
+fn snap_session_is_running(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let result = ctx.manager.spawn(SpawnOptions {
         name: Some(name.clone()),
@@ -348,7 +348,7 @@ fn snap_hash_same(ctx: &Ctx) {
 
 /// Simulate a TUI app rendering box-drawing borders via raw escape sequences.
 #[when("the screen displays box-drawing characters")]
-fn snap_screen_displays_box_drawing(mut ctx: Ctx) -> Ctx {
+fn snap_screen_displays_box_drawing(ctx: Ctx) -> Ctx {
     // Write raw terminal output that a TUI app would produce:
     // box-drawing characters forming a panel border.
     let tui_output = "\x1b[H\x1b[2J\
@@ -364,7 +364,7 @@ fn snap_screen_displays_box_drawing(mut ctx: Ctx) -> Ctx {
 
 /// Simulate a TUI app rendering emoji and special glyphs.
 #[when("the screen displays emoji and special glyphs")]
-fn snap_screen_displays_emoji(mut ctx: Ctx) -> Ctx {
+fn snap_screen_displays_emoji(ctx: Ctx) -> Ctx {
     let tui_output = "\x1b[H\x1b[2J\
         \u{2705} All checks passed\r\n\
         \u{26A0}\u{FE0F}  Warning: disk space low\r\n\
@@ -378,7 +378,7 @@ fn snap_screen_displays_emoji(mut ctx: Ctx) -> Ctx {
 
 /// Simulate a TUI layout combining box-drawing, emoji, and standard text.
 #[when("the screen displays a TUI layout with mixed unicode")]
-fn snap_screen_displays_mixed_unicode(mut ctx: Ctx) -> Ctx {
+fn snap_screen_displays_mixed_unicode(ctx: Ctx) -> Ctx {
     let tui_output = "\x1b[H\x1b[2J\
         \u{256D}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{256E}\r\n\
         \u{2502} \u{1F4E6} Tasks \u{2502}\r\n\

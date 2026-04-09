@@ -37,7 +37,7 @@ fn ctx() -> Ctx {
 // -- Given steps --
 
 #[given("a session {name} is running")]
-fn ac_session_running(mut ctx: Ctx, name: String) -> Ctx {
+fn ac_session_running(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let result = ctx.manager.spawn(SpawnOptions {
         name: Some(name.clone()),
@@ -59,7 +59,7 @@ fn ac_session_running(mut ctx: Ctx, name: String) -> Ctx {
     "a session {name} is running an application \
      that streams text"
 )]
-fn ac_session_streaming(mut ctx: Ctx, name: String) -> Ctx {
+fn ac_session_streaming(ctx: Ctx, name: String) -> Ctx {
     let name = unquote(&name);
     let result = ctx.manager.spawn(SpawnOptions {
         name: Some(name.clone()),
@@ -118,14 +118,14 @@ fn ac_hash_before_stream(mut ctx: Ctx) -> Ctx {
 // -- When steps --
 
 #[when("I send input that causes the screen to change")]
-fn ac_send_changing_input(mut ctx: Ctx) -> Ctx {
+fn ac_send_changing_input(ctx: Ctx) -> Ctx {
     let _ = ctx.manager.type_text("app", "new content");
     std::thread::sleep(std::time::Duration::from_millis(200));
     ctx
 }
 
 #[when("I send input that causes progressive rendering")]
-fn ac_send_progressive_input(mut ctx: Ctx) -> Ctx {
+fn ac_send_progressive_input(ctx: Ctx) -> Ctx {
     let _ = ctx.manager.type_text("app", "rendered");
     std::thread::sleep(std::time::Duration::from_millis(200));
     ctx

@@ -36,3 +36,17 @@ jobs:
         run: |
           which frameterm
           frameterm --help
+
+  test-sha-pin:
+    name: "Test SHA pin on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: stefanmatar/frameterm@378eef343ad063386431daa76ef16fc7e0ef9635
+
+      - name: Verify binary
+        run: |
+          which frameterm
+          frameterm --help

@@ -180,6 +180,9 @@ enum Commands {
     /// Stop the daemon and terminate all sessions
     Stop,
 
+    /// Stream JSON commands via stdin/stdout over a single daemon connection
+    Pipe,
+
     /// Start the daemon in the foreground (used internally)
     Daemon,
 
@@ -240,6 +243,14 @@ fn main() {
     if let Commands::Examples = &cli.command {
         print_examples();
         return;
+    }
+
+    if let Commands::Pipe = &cli.command {
+        if let Err(e) = client::ensure_daemon() {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+        client::run_pipe();
     }
 
     if let Err(e) = client::ensure_daemon() {
@@ -376,7 +387,7 @@ fn main() {
 
         Commands::Stop => Request::Stop,
 
-        Commands::Daemon | Commands::Examples => unreachable!(),
+        Commands::Daemon | Commands::Examples | Commands::Pipe => unreachable!(),
     };
 
     match client::send_request(&request) {

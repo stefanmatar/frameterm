@@ -1,6 +1,18 @@
 use serde::{Deserialize, Serialize};
 
+/// Envelope wrapping a command with an optional request ID for multiplexing.
+/// When `id` is present the daemon echoes it back in the response, allowing
+/// clients to match responses to requests when multiple are in flight.
 #[derive(Debug, Serialize, Deserialize)]
+pub struct Envelope {
+    /// Opaque caller-assigned identifier. Echoed back in the response.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(flatten)]
+    pub request: Request,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "command", rename_all = "snake_case")]
 pub enum Request {
     Spawn {
@@ -70,6 +82,9 @@ pub enum Request {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Response {
     pub ok: bool,
+    /// Echoed from the request envelope. Present only when the request included an `id`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub data: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -88,6 +103,7 @@ impl Response {
     pub fn success(data: serde_json::Value) -> Self {
         Self {
             ok: true,
+            id: None,
             data: Some(data),
             error: None,
         }
@@ -96,6 +112,7 @@ impl Response {
     pub fn error(code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
             ok: false,
+            id: None,
             data: None,
             error: Some(ErrorPayload {
                 code: code.into(),
@@ -112,6 +129,7 @@ impl Response {
     ) -> Self {
         Self {
             ok: false,
+            id: None,
             data: None,
             error: Some(ErrorPayload {
                 code: code.into(),
@@ -119,5 +137,11 @@ impl Response {
                 suggestion: Some(suggestion.into()),
             }),
         }
+    }
+
+    /// Attach a request ID to this response (echoed back from the envelope).
+    pub fn with_id(mut self, id: Option<String>) -> Self {
+        self.id = id;
+        self
     }
 }

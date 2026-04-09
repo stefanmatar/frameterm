@@ -17,7 +17,7 @@ fn unquote(s: &str) -> String {
 /// Spawn bash and have it `echo` the given content,
 /// producing real PTY output that the element detector
 /// can parse.
-fn spawn_with_output(manager: &mut SessionManager, content: &str) {
+fn spawn_with_output(manager: &SessionManager, content: &str) {
     let _ = manager.spawn(SpawnOptions {
         name: Some("ui".to_string()),
         command: "bash".to_string(),
@@ -56,20 +56,20 @@ fn ctx() -> Ctx {
     "a session running a dialog with \
      {b1} and {b2} buttons"
 )]
-fn ui_dialog_with_buttons(mut ctx: Ctx, b1: String, b2: String) -> Ctx {
+fn ui_dialog_with_buttons(ctx: Ctx, b1: String, b2: String) -> Ctx {
     let b1 = unquote(&b1);
     let b2 = unquote(&b2);
     let content = format!("Dialog:\\n  {b1}  {b2}\\n");
-    spawn_with_output(&mut ctx.manager, &content);
+    spawn_with_output(&ctx.manager, &content);
     ctx
 }
 
 #[given("a session running a dialog with {t1} and {t2}")]
-fn ui_dialog_with_toggles(mut ctx: Ctx, t1: String, t2: String) -> Ctx {
+fn ui_dialog_with_toggles(ctx: Ctx, t1: String, t2: String) -> Ctx {
     let t1 = unquote(&t1);
     let t2 = unquote(&t2);
     let content = format!("Options:\\n  {t1}\\n  {t2}\\n");
-    spawn_with_output(&mut ctx.manager, &content);
+    spawn_with_output(&ctx.manager, &content);
     ctx
 }
 
@@ -77,23 +77,23 @@ fn ui_dialog_with_toggles(mut ctx: Ctx, t1: String, t2: String) -> Ctx {
     "a session running a form with an input field \
      at the cursor position"
 )]
-fn ui_form_with_input(mut ctx: Ctx) -> Ctx {
+fn ui_form_with_input(ctx: Ctx) -> Ctx {
     let content = "Name: __________\\n";
-    spawn_with_output(&mut ctx.manager, content);
+    spawn_with_output(&ctx.manager, content);
     ctx
 }
 
 #[given("a session with a focused button")]
-fn ui_focused_button(mut ctx: Ctx) -> Ctx {
+fn ui_focused_button(ctx: Ctx) -> Ctx {
     let content = "Menu:\\n  > [Submit]\\n";
-    spawn_with_output(&mut ctx.manager, content);
+    spawn_with_output(&ctx.manager, content);
     ctx
 }
 
 #[given("a session displaying only plain text")]
-fn ui_plain_text(mut ctx: Ctx) -> Ctx {
+fn ui_plain_text(ctx: Ctx) -> Ctx {
     let content = "Hello, this is plain text output.\\n";
-    spawn_with_output(&mut ctx.manager, content);
+    spawn_with_output(&ctx.manager, content);
     ctx
 }
 
