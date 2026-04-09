@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.3.1
+
+### Fixed
+
+- **Homebrew tap sync**: Rewrote the release workflow's tap sync step to use
+  `git clone` + `git push` instead of the GitHub Contents API, which was
+  silently failing with HTTP 403. The step now emits a visible warning when
+  `HOMEBREW_TAP_TOKEN` is missing instead of succeeding silently.
+
 ## v1.3.0
 
 ### Added
