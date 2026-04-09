@@ -1,30 +1,30 @@
 class Frameterm < Formula
   desc "TUI automation for AI agents with video recording"
   homepage "https://github.com/stefanmatar/frameterm"
-  version "1.3.0"
+  version "1.3.1"
   license "MIT"
 
   depends_on "ffmpeg"
 
   on_macos do
     on_arm do
-      url "https://github.com/stefanmatar/frameterm/releases/download/v1.3.0/frameterm-macOS-arm64.tar.gz"
-      sha256 "efb288650bb3b01af18b593a0fea856fcf13dec03972a6d26f1cb87ca6fbaaf7"
+      url "https://github.com/stefanmatar/frameterm/releases/download/v1.3.1/frameterm-macOS-arm64.tar.gz"
+      sha256 "378f57b6c90cea969186ac4622972cce9c65871906249d4d8ef6c4a945c1282d"
     end
     on_intel do
-      url "https://github.com/stefanmatar/frameterm/releases/download/v1.3.0/frameterm-macOS-x86_64.tar.gz"
-      sha256 "429b9ad58585eabbc906ee479041a753ecf730e6d758219b9339f72f03f5a8ae"
+      url "https://github.com/stefanmatar/frameterm/releases/download/v1.3.1/frameterm-macOS-x86_64.tar.gz"
+      sha256 "6a6a5b15cf7d7f3dfd13fc79cb72f84a5526fd7161077ec0daa55d2187cf7319"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/stefanmatar/frameterm/releases/download/v1.3.0/frameterm-Linux-gnu-arm64.tar.gz"
-      sha256 "5086482485e289660c25b81f03db0bd632aea0c04d02cbdfeb779cb59c1593a9"
+      url "https://github.com/stefanmatar/frameterm/releases/download/v1.3.1/frameterm-Linux-gnu-arm64.tar.gz"
+      sha256 "79ae36d6c541e0a6a25a36cf5f26576d95c5d65e2f0087a9aca764c5cd11e35d"
     end
     on_intel do
-      url "https://github.com/stefanmatar/frameterm/releases/download/v1.3.0/frameterm-Linux-gnu-x86_64.tar.gz"
-      sha256 "67b6b23ac315d98311ed8a733fc674096a95e4cd1c8c0eda1eeb1962b2e1a53f"
+      url "https://github.com/stefanmatar/frameterm/releases/download/v1.3.1/frameterm-Linux-gnu-x86_64.tar.gz"
+      sha256 "0a64e47296628d2ca9855d1697d3f3862db047d08f0ff41f694bafea7a851888"
     end
   end
 
